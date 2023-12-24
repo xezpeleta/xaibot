@@ -2,25 +2,13 @@
 # pylint: disable=unused-argument
 # This program is dedicated to the public domain under the CC0 license.
 
-"""
-Simple Bot to reply to Telegram messages.
-
-First, a few handler functions are defined. Then, those functions are passed to
-the Application and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
-
 import os
 import logging
 from dotenv import load_dotenv
 
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from functools import wraps
 
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
@@ -37,6 +25,17 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
+LIST_OF_ADMINS = [2614189]
+
+def restricted(func):
+    @wraps(func)
+    async def wrapped(update, context, *args, **kwargs):
+        user_id = update.effective_user.id
+        if user_id not in LIST_OF_ADMINS:
+            print(f"Unauthorized access denied for {user_id}.")
+            return
+        return await func(update, context, *args, **kwargs)
+    return wrapped
 
 # Define a few command handlers. These usually take the two arguments update and
 # context.
@@ -52,17 +51,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Send a message when the command /help is issued."""
     await update.message.reply_text("Help!")
 
-
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Echo the user message."""
-    await update.message.reply_text(update.message.text)
+    await update.message.reply_text(str(update.effective_user.id) + " " + update.message.text)
 
-
+@restricted
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply using Mistral AI"""
     mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
     model = "mistral-medium"
-
     client = MistralClient(api_key=mistralai_api_key)
 
     chat_response = client.chat (
@@ -71,8 +68,11 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     
     answer = chat_response.choices[0].message.content
-    
     await update.message.reply_text(answer)
+
+async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Get user id"""
+    await update.message.reply_text(str(update.effective_user.id))
 
 def main() -> None:
     # Get Telegram Bot Token from envar
@@ -88,10 +88,11 @@ def main() -> None:
     # on different commands - answer in Telegram
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("getid", getid))
 
     # on non command i.e message - echo the message on Telegram
-    #application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    #application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
