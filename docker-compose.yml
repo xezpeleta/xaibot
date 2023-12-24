@@ -1,0 +1,16 @@
+version: "3.1"
+
+services:
+  xaibot:
+    build: .
+    container_name: "xaibot"
+    restart: unless-stopped
+    volumes:
+      - ./src:/app
+    environment:
+      - TZ=Europe/Paris
+      - LOGLEVEL=${LOGLEVEL:-INFO}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - MISTRALAI_API_KEY=${MISTRALAI_API_KEY}
+
+    

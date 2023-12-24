@@ -17,28 +17,35 @@ from mistralai.models.chat_completion import ChatMessage
 load_dotenv()
 
 # Enable logging
+loglevel = os.getenv("LOGLEVEL", "INFO")
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=loglevel
 )
 # set higher logging level for httpx to avoid all GET and POST requests being logged
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
 logger = logging.getLogger(__name__)
 
-LIST_OF_ADMINS = [2614189]
+HELP = """
+/start - Start the bot\n
+/help - Show this help message\n
+/getid - Get user and chat id\n
+"""
+
+ALLOWED_USERS = [2614189, 2181298]
+ALLOWED_GROUPS = [1002015877792]
 
 def restricted(func):
     @wraps(func)
     async def wrapped(update, context, *args, **kwargs):
         user_id = update.effective_user.id
-        if user_id not in LIST_OF_ADMINS:
-            print(f"Unauthorized access denied for {user_id}.")
+        chat_id = update.effective_chat.id
+        if user_id not in ALLOWED_USERS and chat_id not in ALLOWED_GROUPS:
+            print(f"Unauthorized access denied for user {user_id} or group {chat_id}.")
             return
         return await func(update, context, *args, **kwargs)
     return wrapped
 
-# Define a few command handlers. These usually take the two arguments update and
-# context.
+@restricted
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user = update.effective_user
@@ -49,32 +56,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
-    await update.message.reply_text("Help!")
-
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    await update.message.reply_text(str(update.effective_user.id) + " " + update.message.text)
+    await update.message.reply_text(HELP)
 
 @restricted
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply using Mistral AI"""
+    username = update.effective_user.username
+    message = update.message.text
+    logger.info("Chat message received from user %s : %s", username, message)
+    #logging.info("Chat message received from user %s : %s", username, message)
+
     mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
     model = "mistral-medium"
+    system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise (30 words maximum)."
     client = MistralClient(api_key=mistralai_api_key)
 
     chat_response = client.chat (
         model = model,
-        messages=[ChatMessage(role="user", content=update.message.text)],
+        messages=[
+            ChatMessage(role="system", content=system_prompt),
+            ChatMessage(role="user", content=message)],
     )
     
     answer = chat_response.choices[0].message.content
     await update.message.reply_text(answer)
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Get user id"""
-    await update.message.reply_text(str(update.effective_user.id))
+    """Get user and chat id"""
+    user = update.effective_user.id
+    chat = update.effective_chat.id
+    await update.message.reply_text("User ID: " + str(user) + "\nChat ID: " + str(chat) + "\n")
 
 def main() -> None:
+    logger.info("Starting bot...")
+
     # Get Telegram Bot Token from envar
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 
@@ -91,8 +106,7 @@ def main() -> None:
     application.add_handler(CommandHandler("getid", getid))
 
     # on non command i.e message - echo the message on Telegram
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
-    #application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
