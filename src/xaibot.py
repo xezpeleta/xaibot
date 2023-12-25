@@ -3,6 +3,7 @@
 # This program is dedicated to the public domain under the CC0 license.
 
 import os
+import re
 import logging
 from dotenv import load_dotenv
 
@@ -24,11 +25,13 @@ logging.basicConfig(
 # set higher logging level for httpx to avoid all GET and POST requests being logged
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+logger.setLevel(loglevel)
 
 HELP = """
 /start - Start the bot\n
 /help - Show this help message\n
 /getid - Get user and chat id\n
+/chat - Chat with the bot\n
 """
 
 ALLOWED_USERS = [2614189, 2181298]
@@ -56,6 +59,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
+    username = update.effective_user.username
+    logger.warning("[INFO] Help command received from user %s" % (username))
     await update.message.reply_text(HELP)
 
 @restricted
@@ -63,23 +68,33 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply using Mistral AI"""
     username = update.effective_user.username
     message = update.message.text
-    logger.info("Chat message received from user %s : %s", username, message)
-    #logging.info("Chat message received from user %s : %s", username, message)
+    logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
 
     mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
     model = "mistral-medium"
-    system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise (30 words maximum)."
+    system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise"
     client = MistralClient(api_key=mistralai_api_key)
 
     chat_response = client.chat (
         model = model,
+        safe_mode = False,
         messages=[
             ChatMessage(role="system", content=system_prompt),
             ChatMessage(role="user", content=message)],
     )
     
     answer = chat_response.choices[0].message.content
-    await update.message.reply_text(answer)
+    
+    '''
+    Escape special characters (from Telegram API documentation):
+        In all other places characters 
+        '_', '*', '[', ']', '(', ')', '~', '`', '>', 
+        '#', '+', '-', '=', '|', '{', '}', '.', '!' 
+        must be escaped with the preceding character '\'.
+    '''
+    answer = re.sub(r"([_*\[\]()~`>#\+\-=|{}.!])", r"\\\1", answer)
+    #await update.message.reply_text(answer)
+    await update.message.reply_text(answer, parse_mode="MarkdownV2")
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get user and chat id"""
@@ -104,6 +119,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("getid", getid))
+    application.add_handler(CommandHandler("chat", chat))
 
     # on non command i.e message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
