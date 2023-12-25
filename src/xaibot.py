@@ -35,7 +35,7 @@ HELP = """
 """
 
 ALLOWED_USERS = [2614189, 2181298]
-ALLOWED_GROUPS = [1002015877792]
+ALLOWED_GROUPS = [-1002015877792, -4018931878]
 
 def restricted(func):
     @wraps(func)
@@ -43,6 +43,7 @@ def restricted(func):
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         if user_id not in ALLOWED_USERS and chat_id not in ALLOWED_GROUPS:
+            logger.warning("[WARNING] Unauthorized access denied for user %s or group %s." % (user_id, chat_id))
             print(f"Unauthorized access denied for user {user_id} or group {chat_id}.")
             return
         return await func(update, context, *args, **kwargs)
@@ -52,6 +53,7 @@ def restricted(func):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user = update.effective_user
+    logger.warning("[INFO] Start command received from user %s" % (user.username))
     await update.message.reply_html(
         rf"Hi {user.mention_html()}!",
         reply_markup=ForceReply(selective=True),
@@ -84,6 +86,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     
     answer = chat_response.choices[0].message.content
+    #logger.info("[INFO] Chat response from Mistral AI: %s" % (answer))
     
     '''
     Escape special characters (from Telegram API documentation):
@@ -92,15 +95,16 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         '#', '+', '-', '=', '|', '{', '}', '.', '!' 
         must be escaped with the preceding character '\'.
     '''
-    answer = re.sub(r"([_*\[\]()~`>#\+\-=|{}.!])", r"\\\1", answer)
-    #await update.message.reply_text(answer)
+    #answer = re.sub(r"([_*\[\]()~`>#\+\-=|{}.!])", r"\\\1", answer)
+    answer = re.sub(r"([\[\]()~>\+\-=|{}.!])", r"\\\1", answer)
     await update.message.reply_text(answer, parse_mode="MarkdownV2")
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get user and chat id"""
     user = update.effective_user.id
     chat = update.effective_chat.id
-    await update.message.reply_text("User ID: " + str(user) + "\nChat ID: " + str(chat) + "\n")
+    logger.info("[INFO] Get ID command received from user %s and chat %s " % (user, chat))
+    await update.message.reply_text("User ID: `" + str(user) + "`\nChat ID: `" + str(chat) + "`\n", parse_mode="MarkdownV2")
 
 def main() -> None:
     logger.info("Starting bot...")
@@ -121,7 +125,7 @@ def main() -> None:
     application.add_handler(CommandHandler("getid", getid))
     application.add_handler(CommandHandler("chat", chat))
 
-    # on non command i.e message - echo the message on Telegram
+    # on non command i.e message, chat with Mistral AI
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
     # Run the bot until the user presses Ctrl-C
