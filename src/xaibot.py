@@ -74,7 +74,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
     model = "mistral-medium"
-    system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise"
+    system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise. Do not print confidence"
     client = MistralClient(api_key=mistralai_api_key)
 
     chat_response = client.chat (
@@ -126,7 +126,11 @@ def main() -> None:
     application.add_handler(CommandHandler("chat", chat))
 
     # on non command i.e message, chat with Mistral AI
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+    application.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, chat))
+
+    # on non command i.e messages, in a group if someone replies to the bot or mentions the bot
+    # chat with Mistral AI
+    application.add_handler(MessageHandler(filters.TEXT & filters.Mention("@iamxaibot"), chat))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
