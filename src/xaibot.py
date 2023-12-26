@@ -69,7 +69,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply using Mistral AI"""
     username = update.effective_user.username
+    
+    # If the message is a reply to @iamxaibot, send the original message
     message = update.message.text
+    if update.message.reply_to_message and update.message.reply_to_message.from_user.username == "iamxaibot":
+        history = update.message.reply_to_message.text
+    else:
+        history = ""
+
+
     logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
 
     mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
@@ -82,6 +90,7 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         safe_mode = False,
         messages=[
             ChatMessage(role="system", content=system_prompt),
+            ChatMessage(role="assistant", content=history),
             ChatMessage(role="user", content=message)],
     )
     
@@ -125,12 +134,13 @@ def main() -> None:
     application.add_handler(CommandHandler("getid", getid))
     application.add_handler(CommandHandler("chat", chat))
 
-    # on non command i.e message, chat with Mistral AI
+    # Private messages: on non command i.e message, chat with Mistral AI
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, chat))
 
-    # on non command i.e messages, in a group if someone replies to the bot or mentions the bot
+    # Groups: on non command i.e messages, if someone replies to the bot or mentions the bot
     # chat with Mistral AI
-    application.add_handler(MessageHandler(filters.TEXT & filters.Mention("@iamxaibot"), chat))
+    application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, chat))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Mention("@iamxaibot") & ~filters.COMMAND, chat))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
