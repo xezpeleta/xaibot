@@ -5,14 +5,17 @@
 import os
 import re
 import logging
+import requests
 from dotenv import load_dotenv
-
-from telegram import ForceReply, Update
+from telegram import ForceReply, Update, MessageEntity
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from functools import wraps
-
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
+from bs4 import BeautifulSoup
+
+# Get MistralAI API Token from envar
+MISTRALAI_API_KEY = os.getenv("MISTRALAI_API_KEY")
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +35,8 @@ HELP = """
 /help - Show this help message\n
 /getid - Get user and chat id\n
 /chat - Chat with the bot\n
+/link - [TODO] Send link\n
+/img - [TODO] Send image\n
 """
 
 ALLOWED_USERS = [2614189, 2181298]
@@ -69,21 +74,58 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply using Mistral AI"""
     username = update.effective_user.username
-    
-    # If the message is a reply to @iamxaibot, send the original message
     message = update.message.text
-    if update.message.reply_to_message and update.message.reply_to_message.from_user.username == "iamxaibot":
+    logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
+
+    # If the message is a link, get the link content
+    entities = update.message.parse_entities(types=MessageEntity.URL)
+    for entity in entities:
+        link = update.message.parse_entity(entity)
+        logger.info("[INFO] Link received from user %s: %s." % (username, link))
+        
+        # Read link content (only text) and send it to Mistral AI
+        response = requests.get(link)
+        content = response.content
+        soup = BeautifulSoup(content, features="html.parser")
+        text = soup.get_text()
+        # Remove empty lines
+        text = os.linesep.join([s for s in text.splitlines() if s])
+        if message:
+            message = "Check this content from the following link [%s]: %s\n." % (link, text) + message
+        else:
+            message = "Check this content from the following link (%s): %s\n. Can you summarize it? Please be concise" % (link, text)
+    
+    # If the message is a reply, send also the original message and check if it is a link
+    #if update.message.reply_to_message and update.message.reply_to_message.from_user.username == "iamxaibot":
+    if update.message.reply_to_message and filters.Mention("@iamxaibot"):
         history = update.message.reply_to_message.text
+
+        # If the message is a link, send the link content
+        entities = update.message.reply_to_message.parse_entities(types=MessageEntity.URL)
+        for entity in entities:
+            link = update.message.reply_to_message.parse_entity(entity)
+            logger.info("[INFO] Link received from user %s: %s." % (username, link))
+            
+            # Read link content (only text) and send it to Mistral AI
+            response = requests.get(link)
+            content = response.content
+            soup = BeautifulSoup(content, features="html.parser")
+            text = soup.get_text()
+            # Remove empty lines
+            text = os.linesep.join([s for s in text.splitlines() if s])
+            if message:
+                message = "Check this content from the following link [%s]: %s\n." % (link, text) + message
+            else:
+                message = "Check this content from the following link (%s): %s\n. Can you summarize it? Please be concise" % (link, text)
     else:
         history = ""
 
-
-    logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
-
-    mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
+    message = message.replace("@iamxaibot", "")
     model = "mistral-medium"
     system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise. Do not print confidence"
-    client = MistralClient(api_key=mistralai_api_key)
+    client = MistralClient(api_key=MISTRALAI_API_KEY)
+
+    logger.info("[INFO] Prompt: %s" % (message))
 
     chat_response = client.chat (
         model = model,
@@ -106,7 +148,11 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     '''
     #answer = re.sub(r"([_*\[\]()~`>#\+\-=|{}.!])", r"\\\1", answer)
     answer = re.sub(r"([\[\]()~>\+\-=|{}.!])", r"\\\1", answer)
-    await update.message.reply_text(answer, parse_mode="MarkdownV2")
+    # if Markdown parse fails, try plain text
+    try:
+        await update.message.reply_text(answer, parse_mode="MarkdownV2")
+    except:
+        await update.message.reply_text(answer)
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get user and chat id"""
@@ -121,9 +167,6 @@ def main() -> None:
     # Get Telegram Bot Token from envar
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 
-    # Get MistralAI API Token from envar
-    mistralai_api_key = os.getenv("MISTRALAI_API_KEY")
-
     """Start the bot."""
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(telegram_bot_token).build()
@@ -133,6 +176,10 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("getid", getid))
     application.add_handler(CommandHandler("chat", chat))
+    application.add_handler(CommandHandler("link", chat))
+
+    # DISABLED - Get any link from the groups (no mention non reply needed)
+    #application.add_handler(MessageHandler(filters.Entity("url") | filters.Entity("text_link"), chat))
 
     # Private messages: on non command i.e message, chat with Mistral AI
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, chat))
