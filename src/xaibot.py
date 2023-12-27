@@ -181,10 +181,10 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         must be escaped with the preceding character '\'.
     '''
     #answer = re.sub(r"([_*\[\]()~`>#\+\-=|{}.!])", r"\\\1", answer)
-    answer = re.sub(r"([\[\]()~>\+\-=|{}.!])", r"\\\1", answer)
+    answer_escaped = re.sub(r"([\[\]()~>\+\-=|{}.!])", r"\\\1", answer)
     # if Markdown parse fails, try plain text
     try:
-        await update.message.reply_text(answer, parse_mode="MarkdownV2")
+        await update.message.reply_text(answer_escaped, parse_mode="MarkdownV2")
     except:
         await update.message.reply_text(answer)
 
