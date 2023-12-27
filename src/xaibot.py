@@ -5,14 +5,12 @@
 import os
 import re
 import logging
-import requests
-
+import trafilatura
 from telegram import ForceReply, Update, MessageEntity
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from functools import wraps
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
-from bs4 import BeautifulSoup
 
 # Get envars
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -69,21 +67,23 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.warning("[INFO] Help command received from user %s" % (username))
     await update.message.reply_text(HELP)
 
-def getTextFromLink(link):
+def getTextFromLink(url):
     """Get link content"""
     try:
-        response = requests.get(link)
-        content = response.content
-        soup = BeautifulSoup(content, features="html.parser")
-        text = soup.get_text()
+        # Test approach with trafilatura
+        downloaded = trafilatura.fetch_url(url)
+        if downloaded is None:
+            logger.warning("[WARNING] Error getting text from the link: %s" % (url))
+            raise Exception("Error getting text from the link: %s" % (url))
+        text = trafilatura.extract(downloaded, output_format='json', with_metadata=True, include_comments=False, url=url)
         # Remove empty lines
         text = os.linesep.join([s for s in text.splitlines() if s])
-        logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (link, len(text)))
+        logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (url, len(text)))
         # TODO: limit text to 1000 characters?
         # TODO: avoid prompt injection
     except:
-        logger.warning("[WARNING] Error getting text from the link: %s" % (link))
-        raise Exception("Error getting text from the link: %s" % (link))
+        logger.warning("[WARNING] Error getting text from the link: %s" % (url))
+        raise Exception("Error getting text from the link: %s" % (url))
     return text
 
 @restricted
