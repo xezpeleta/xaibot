@@ -6,7 +6,7 @@ import os
 import re
 import logging
 import requests
-from dotenv import load_dotenv
+
 from telegram import ForceReply, Update, MessageEntity
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from functools import wraps
@@ -14,11 +14,13 @@ from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 from bs4 import BeautifulSoup
 
-# Get MistralAI API Token from envar
+# Get envars
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_BOT_NAME = os.getenv("TELEGRAM_BOT_NAME")
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME")
+TELEGRAM_ALLOWED_USERS = [int(user_id) for user_id in os.getenv("TELEGRAM_ALLOWED_USERS").split(",")]
+TELEGRAM_ALLOWED_GROUPS = [int(group_id) for group_id in os.getenv("TELEGRAM_ALLOWED_GROUPS").split(",")]
 MISTRALAI_API_KEY = os.getenv("MISTRALAI_API_KEY")
-
-# Load environment variables
-load_dotenv()
 
 # Enable logging
 loglevel = os.getenv("LOGLEVEL", "INFO")
@@ -39,15 +41,12 @@ HELP = """
 /img - [TODO] Send image\n
 """
 
-ALLOWED_USERS = [2614189, 2181298]
-ALLOWED_GROUPS = [-1002015877792, -4018931878]
-
 def restricted(func):
     @wraps(func)
     async def wrapped(update, context, *args, **kwargs):
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
-        if user_id not in ALLOWED_USERS and chat_id not in ALLOWED_GROUPS:
+        if user_id not in TELEGRAM_ALLOWED_USERS and chat_id not in TELEGRAM_ALLOWED_GROUPS:
             logger.warning("[WARNING] Unauthorized access denied for user %s or group %s." % (user_id, chat_id))
             print(f"Unauthorized access denied for user {user_id} or group {chat_id}.")
             return
@@ -98,8 +97,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # This is a workaround to avoid undersired replies from the bot
     # If the chat is a group (or supergroup) and the message is a reply for someone else (not for for the bot)
     # or it ignore it
-    if update.message.reply_to_message and update.message.reply_to_message.from_user.username != "iamxaibot":
-        if '@iamxaibot' not in message:
+    if update.message.reply_to_message and update.message.reply_to_message.from_user.username != TELEGRAM_BOT_USERNAME:
+        if '@' + TELEGRAM_BOT_USERNAME not in message:
             logger.debug("[DEBUG] Message is a reply for someone else (not for the bot). Ignoring it.")
             return
 
@@ -122,8 +121,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if ( update.message.chat.type == 'private' and update.message.reply_to_message )\
         or ( ( update.message.chat.type != 'private' )\
-        and ( update.message.reply_to_message and update.message.reply_to_message.from_user.username == "iamxaibot"
-        or "@iamxaibot" in message ) ):
+        and ( update.message.reply_to_message and update.message.reply_to_message.from_user.username == TELEGRAM_BOT_USERNAME
+        or "@" + TELEGRAM_BOT_USERNAME in message ) ):
 
         logger.debug("[DEBUG] Message is a reply for the bot.")
         history = update.message.reply_to_message.text
@@ -152,10 +151,10 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             message = "Check this content from the following link (%s): %s\n. Can you summarize it? Please be concise" % (link, text)
 
     # Clean the prompt
-    message = message.replace("@iamxaibot", "")
+    message = message.replace("@" + TELEGRAM_BOT_USERNAME, "")
 
     model = "mistral-medium"
-    system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise. Do not print confidence"
+    system_prompt = "You are %s, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise. Do not print confidence" % (TELEGRAM_BOT_NAME)
     client = MistralClient(api_key=MISTRALAI_API_KEY)
 
     logger.debug("[DEBUG] History (assistant prompt): %s" % (history))
@@ -221,7 +220,7 @@ def main() -> None:
     # Groups: on non command i.e messages, if someone replies to the bot or mentions the bot
     # chat with Mistral AI
     application.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, chat))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Mention("@iamxaibot") & ~filters.COMMAND, chat))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Mention("@" + TELEGRAM_BOT_USERNAME) & ~filters.COMMAND, chat))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
