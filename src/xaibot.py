@@ -70,62 +70,96 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.warning("[INFO] Help command received from user %s" % (username))
     await update.message.reply_text(HELP)
 
-@restricted
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Reply using Mistral AI"""
-    username = update.effective_user.username
-    message = update.message.text
-    logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
-
-    # If the message is a link, get the link content
-    entities = update.message.parse_entities(types=MessageEntity.URL)
-    for entity in entities:
-        link = update.message.parse_entity(entity)
-        logger.info("[INFO] Link received from user %s: %s." % (username, link))
-        
-        # Read link content (only text) and send it to Mistral AI
+def getTextFromLink(link):
+    """Get link content"""
+    try:
         response = requests.get(link)
         content = response.content
         soup = BeautifulSoup(content, features="html.parser")
         text = soup.get_text()
         # Remove empty lines
         text = os.linesep.join([s for s in text.splitlines() if s])
+        logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (link, len(text)))
+        # TODO: limit text to 1000 characters?
+        # TODO: avoid prompt injection
+    except:
+        logger.warning("[WARNING] Error getting text from the link: %s" % (link))
+        raise Exception("Error getting text from the link: %s" % (link))
+    return text
+
+@restricted
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reply using Mistral AI"""
+    username = update.effective_user.username
+    message = update.message.text
+    answer = ""
+    history = ""
+
+    # This is a workaround to avoid undersired replies from the bot
+    # If the chat is a group (or supergroup) and the message is a reply for someone else (not for for the bot)
+    # or it ignore it
+    if update.message.reply_to_message and update.message.reply_to_message.from_user.username != "iamxaibot":
+        if '@iamxaibot' not in message:
+            logger.debug("[DEBUG] Message is a reply for someone else (not for the bot). Ignoring it.")
+            return
+
+    logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
+
+    # If the message is a link, get the link content
+    text = ""
+    entities = update.message.parse_entities(types=MessageEntity.URL)
+    for entity in entities:
+        link = update.message.parse_entity(entity)
+        logger.info("[INFO] Link received from user %s: %s." % (username, link))
+        try:
+            text = getTextFromLink(link)
+            # Include the link in the answer message
+            answer = link + " "
+        except:
+            # muted by the moment
+            #await update.message.reply_text("Sorry but I can't get the content: %s" % (link))
+            return
+
+    if ( update.message.chat.type == 'private' and update.message.reply_to_message )\
+        or ( ( update.message.chat.type != 'private' )\
+        and ( update.message.reply_to_message and update.message.reply_to_message.from_user.username == "iamxaibot"
+        or "@iamxaibot" in message ) ):
+
+        logger.debug("[DEBUG] Message is a reply for the bot.")
+        history = update.message.reply_to_message.text
+
+        # If the reply message contains a link, get the text from the link
+        entities = update.message.reply_to_message.parse_entities(types=MessageEntity.URL)
+        for entity in entities:
+            link = update.message.reply_to_message.parse_entity(entity)
+            logger.info("[INFO] Link received from user %s in a reply message: %s." % (username, link))
+            
+            # Read link content (only text) and send it to Mistral AI
+            try:
+                text = getTextFromLink(link)
+                # Include the link in the answer message
+                answer = link + " "
+            except:
+                # muted by the moment
+                #await update.message.reply_text("Sorry but I can't get the content: %s" % (link))
+                return
+    
+    # If there is no question from the user, only the link, ask for a summary
+    if text != "":
         if message:
             message = "Check this content from the following link [%s]: %s\n." % (link, text) + message
         else:
             message = "Check this content from the following link (%s): %s\n. Can you summarize it? Please be concise" % (link, text)
-    
-    # If the message is a reply, send also the original message and check if it is a link
-    #if update.message.reply_to_message and update.message.reply_to_message.from_user.username == "iamxaibot":
-    if update.message.reply_to_message and filters.Mention("@iamxaibot"):
-        history = update.message.reply_to_message.text
 
-        # If the message is a link, send the link content
-        entities = update.message.reply_to_message.parse_entities(types=MessageEntity.URL)
-        for entity in entities:
-            link = update.message.reply_to_message.parse_entity(entity)
-            logger.info("[INFO] Link received from user %s: %s." % (username, link))
-            
-            # Read link content (only text) and send it to Mistral AI
-            response = requests.get(link)
-            content = response.content
-            soup = BeautifulSoup(content, features="html.parser")
-            text = soup.get_text()
-            # Remove empty lines
-            text = os.linesep.join([s for s in text.splitlines() if s])
-            if message:
-                message = "Check this content from the following link [%s]: %s\n." % (link, text) + message
-            else:
-                message = "Check this content from the following link (%s): %s\n. Can you summarize it? Please be concise" % (link, text)
-    else:
-        history = ""
-
+    # Clean the prompt
     message = message.replace("@iamxaibot", "")
+
     model = "mistral-medium"
     system_prompt = "You are xaibot, a Telegram bot that uses Mistral AI to generate text. Please, be short and concise. Do not print confidence"
     client = MistralClient(api_key=MISTRALAI_API_KEY)
 
-    logger.info("[INFO] Prompt: %s" % (message))
+    logger.debug("[DEBUG] History (assistant prompt): %s" % (history))
+    logger.debug("[DEBUG] Message (user prompt): %s" % (message))
 
     chat_response = client.chat (
         model = model,
@@ -136,8 +170,8 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ChatMessage(role="user", content=message)],
     )
     
-    answer = chat_response.choices[0].message.content
-    #logger.info("[INFO] Chat response from Mistral AI: %s" % (answer))
+    answer = answer + chat_response.choices[0].message.content
+    #logger.debug("[INFO] Chat response from Mistral AI: %s" % (answer))
     
     '''
     Escape special characters (from Telegram API documentation):
