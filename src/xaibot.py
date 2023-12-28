@@ -80,25 +80,31 @@ def getTextFromLink(url):
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Reply using Mistral AI"""
     username = update.effective_user.username
-    message = update.message.text
+    message = update.message
     answer = ""
     history = ""
 
     # This is a workaround to avoid undersired replies from the bot
     # If the chat is a group (or supergroup) and the message is a reply for someone else (not for for the bot)
     # or it ignore it
-    if update.message.reply_to_message and update.message.reply_to_message.from_user.username != TELEGRAM_BOT_USERNAME:
-        if '@' + TELEGRAM_BOT_USERNAME not in message:
+    if message.reply_to_message and message.reply_to_message.from_user.username != TELEGRAM_BOT_USERNAME:
+        if '@' + TELEGRAM_BOT_USERNAME not in message.text and message.chat.type != 'private':
             logger.debug("[DEBUG] Message is a reply for someone else (not for the bot). Ignoring it.")
             return
 
-    logger.info("[INFO] Chat message received from user %s : %s" % (username, message))
+    logger.info("[INFO] Chat message received from user %s : %s" % (username, message.text))
 
     # If the message is a link, get the link content
     text = ""
     entities = update.message.parse_entities(types=MessageEntity.URL)
+    if not entities:
+        logger.debug("[DEBUG] No links in the message. Checking reply message.")
+        message = update.message.reply_to_message
+        history = update.message.reply_to_message.text
+        entities = message.parse_entities(types=MessageEntity.URL)
+    
     for entity in entities:
-        link = update.message.parse_entity(entity)
+        link = message.parse_entity(entity)
         logger.info("[INFO] Link received from user %s: %s." % (username, link))
         try:
             text = getTextFromLink(link)
@@ -108,32 +114,10 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # muted by the moment
             #await update.message.reply_text("Sorry but I can't get the content: %s" % (link))
             return
-
-    if ( update.message.chat.type == 'private' and update.message.reply_to_message )\
-        or ( ( update.message.chat.type != 'private' )\
-        and ( update.message.reply_to_message and update.message.reply_to_message.from_user.username == TELEGRAM_BOT_USERNAME
-        or "@" + TELEGRAM_BOT_USERNAME in message ) ):
-
-        logger.debug("[DEBUG] Message is a reply for the bot.")
-        history = update.message.reply_to_message.text
-
-        # If the reply message contains a link, get the text from the link
-        entities = update.message.reply_to_message.parse_entities(types=MessageEntity.URL)
-        for entity in entities:
-            link = update.message.reply_to_message.parse_entity(entity)
-            logger.info("[INFO] Link received from user %s in a reply message: %s." % (username, link))
-            
-            # Read link content (only text) and send it to Mistral AI
-            try:
-                text = getTextFromLink(link)
-                # Include the link in the answer message
-                answer = link + " "
-            except:
-                # muted by the moment
-                #await update.message.reply_text("Sorry but I can't get the content: %s" % (link))
-                return
     
-    # If there is no question from the user, only the link, ask for a summary
+    
+    # If there is just a link, no question from the user, ask for a summary
+    message = update.message.text
     if text != "":
         if message:
             message = "Check this content from the following link [%s]: %s\n." % (link, text) + message
