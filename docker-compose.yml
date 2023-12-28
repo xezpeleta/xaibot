@@ -16,5 +16,14 @@ services:
       - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
       - TELEGRAM_ALLOWED_GROUPS=${TELEGRAM_ALLOWED_GROUPS}
       - MISTRALAI_API_KEY=${MISTRALAI_API_KEY}
-
+      - FORWARD_PROXY_URL=${FORWARD_PROXY_URL}
+  
+  ladder:
+    image: ghcr.io/everywall/ladder:latest
+    container_name: ladder
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      - RULESET=https://raw.githubusercontent.com/everywall/ladder-rules/main/ruleset.yaml
+      - USER_AGENT=${LADDER_USER_AGENT}
     

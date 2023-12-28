@@ -19,6 +19,7 @@ TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME")
 TELEGRAM_ALLOWED_USERS = [int(user_id) for user_id in os.getenv("TELEGRAM_ALLOWED_USERS").split(",")]
 TELEGRAM_ALLOWED_GROUPS = [int(group_id) for group_id in os.getenv("TELEGRAM_ALLOWED_GROUPS").split(",")]
 MISTRALAI_API_KEY = os.getenv("MISTRALAI_API_KEY")
+FORWARD_PROXY_URL = os.getenv("FORWARD_PROXY_URL")
 
 # Enable logging
 loglevel = os.getenv("LOGLEVEL", "INFO")
@@ -60,7 +61,7 @@ def getTextFromLink(url):
     """Get link content"""
     try:
         # Test approach with trafilatura
-        downloaded = trafilatura.fetch_url(url)
+        downloaded = trafilatura.fetch_url(FORWARD_PROXY_URL + url)
         if downloaded is None:
             logger.warning("[WARNING] Error getting text from the link: %s" % (url))
             raise Exception("Error getting text from the link: %s" % (url))
@@ -68,7 +69,6 @@ def getTextFromLink(url):
         # Remove empty lines
         text = os.linesep.join([s for s in text.splitlines() if s])
         logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (url, len(text)))
-        # TODO: bypass anti-bot measures
         # TODO: limit text to 2000 characters?
         # TODO: avoid prompt injection
     except:
