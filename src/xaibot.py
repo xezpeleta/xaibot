@@ -31,11 +31,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(loglevel)
 
 HELP = """
-/start - Start the bot\n
 /help - Show this help message\n
-/getid - Get user and chat id\n
-/chat - Chat with the bot\n
-/link - [TODO] Send link\n
+/getid - Get user id and chat id (use this ids if you want access to the bot) \n
+/chat - Chat with the Mistral LLM\n
+/link - Send link content to Mistral LLM\n
 /img - [TODO] Send image\n
 """
 
@@ -50,16 +49,6 @@ def restricted(func):
             return
         return await func(update, context, *args, **kwargs)
     return wrapped
-
-@restricted
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
-    logger.warning("[INFO] Start command received from user %s" % (user.username))
-    await update.message.reply_html(
-        rf"Hi {user.mention_html()}!",
-        reply_markup=ForceReply(selective=True),
-    )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
@@ -79,7 +68,8 @@ def getTextFromLink(url):
         # Remove empty lines
         text = os.linesep.join([s for s in text.splitlines() if s])
         logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (url, len(text)))
-        # TODO: limit text to 1000 characters?
+        # TODO: bypass anti-bot measures
+        # TODO: limit text to 2000 characters?
         # TODO: avoid prompt injection
     except:
         logger.warning("[WARNING] Error getting text from the link: %s" % (url))
@@ -230,7 +220,6 @@ def main() -> None:
     application = Application.builder().token(telegram_bot_token).build()
 
     # on different commands - answer in Telegram
-    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("getid", getid))
     application.add_handler(CommandHandler("chat", chat))
