@@ -194,6 +194,31 @@ async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info("[INFO] Get ID command received from user %s and chat %s " % (user, chat))
     await update.message.reply_text("User ID: `" + str(user) + "`\nChat ID: `" + str(chat) + "`\n", parse_mode="MarkdownV2")
 
+async def nitter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    '''Substitute Twitter links with Nitter'''
+    username = update.effective_user.username
+    message = update.message
+    logger.info("[INFO] Twitter command received from user %s : %s" % (username, message.text))
+
+    # Get the links from the message
+    entities = message.parse_entities(types=MessageEntity.URL)
+    # If no links in the message, get the links from the reply message
+    if not entities:
+        logger.debug("[DEBUG] No links in the message. Checking reply message.")
+        message = update.message.reply_to_message
+        entities = message.parse_entities(types=MessageEntity.URL)
+    else:
+        logger.debug("[DEBUG] Entities: %s" % (entities))
+    
+    for entity in entities:
+        link = message.parse_entity(entity)
+        logger.info("[INFO] Link received from user %s: %s." % (username, link))
+        # Substitute Twitter links with Nitter
+        if "twitter.com" or "x.com" in link:
+            nitter_link = link.replace("https://twitter.com", "https://nitter.net").replace("https://x.com", "https://nitter.net")
+            logger.info("[INFO] Nitter link: %s." % (nitter_link))
+            await update.message.reply_text(nitter_link)
+
 def main() -> None:
     logger.info("Starting bot...")
 
@@ -210,6 +235,7 @@ def main() -> None:
     application.add_handler(CommandHandler("getid", getid))
     application.add_handler(CommandHandler("chat", chat))
     application.add_handler(CommandHandler("link", chat))
+    application.add_handler(CommandHandler("nitter", nitter))
 
     # DISABLED - Get any link from the groups (no mention non reply needed)
     #application.add_handler(MessageHandler(filters.Entity("url") | filters.Entity("text_link"), chat))
