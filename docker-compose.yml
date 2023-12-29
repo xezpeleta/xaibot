@@ -24,6 +24,7 @@ services:
     restart: unless-stopped
     environment:
       - PORT=8080
-      - RULESET=https://raw.githubusercontent.com/everywall/ladder-rules/main/ruleset.yaml
-      - USER_AGENT=${LADDER_USER_AGENT}
+      - RULESET=/app/ruleset.yaml
+    volumes:
+    - ./ladder/ladder-ruleset/ruleset.yaml:/app/ruleset.yaml
     

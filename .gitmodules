@@ -1,0 +1,3 @@
+[submodule "ladder/ladder-rules"]
+	path = ladder/ladder-rules
+	url = https://github.com/everywall/ladder-rules.git
