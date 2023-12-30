@@ -11,6 +11,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from functools import wraps
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 # Get envars
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -59,21 +61,34 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 def getTextFromLink(url):
     """Get link content"""
-    try:
-        # Test approach with trafilatura
-        downloaded = trafilatura.fetch_url(FORWARD_PROXY_URL + url)
-        if downloaded is None:
+    options = Options()
+    options.add_argument('--no-sandbox')
+    options.add_argument('--headless')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--disable-dev-shm-usage')
+    logging.getLogger('selenium').setLevel(logging.DEBUG)
+    with webdriver.Remote(command_executor="http://selenium:4444", options=options) as driver:
+        try:
+            # Test approach with trafilatura
+            driver.get(FORWARD_PROXY_URL + url)
+            html = driver.page_source
+            logger.debug("[DEBUG] HTML: %s" % (html))
+            #downloaded = trafilatura.fetch_url(FORWARD_PROXY_URL + url)
+            downloaded = trafilatura.load_html(html)
+            if downloaded is None:
+                logger.warning("[WARNING] Error getting text from the link: %s" % (url))
+                raise Exception("Error getting text from the link: %s" % (url))
+            text = trafilatura.extract(downloaded, output_format='json', with_metadata=True, include_comments=False, url=url)
+            # Remove empty lines
+            text = os.linesep.join([s for s in text.splitlines() if s])
+            logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (url, len(text)))
+            # TODO: limit text to 2000 characters?
+            # TODO: avoid prompt injection
+        except:
             logger.warning("[WARNING] Error getting text from the link: %s" % (url))
             raise Exception("Error getting text from the link: %s" % (url))
-        text = trafilatura.extract(downloaded, output_format='json', with_metadata=True, include_comments=False, url=url)
-        # Remove empty lines
-        text = os.linesep.join([s for s in text.splitlines() if s])
-        logger.info("[INFO] Get text from the link: %s  (Total: %s characters)" % (url, len(text)))
-        # TODO: limit text to 2000 characters?
-        # TODO: avoid prompt injection
-    except:
-        logger.warning("[WARNING] Error getting text from the link: %s" % (url))
-        raise Exception("Error getting text from the link: %s" % (url))
+        finally:
+            driver.close()
     return text
 
 @restricted

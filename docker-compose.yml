@@ -26,5 +26,11 @@ services:
       - PORT=8080
       - RULESET=/app/ruleset.yaml
     volumes:
-    - ./ladder/ladder-ruleset/ruleset.yaml:/app/ruleset.yaml
+    - ./ladder/ladder-rules/ruleset.yaml:/app/ruleset.yaml
+  
+  selenium:
+    image: seleniarm/standalone-chromium:latest
+    container_name: selenium
+    restart: unless-stopped
+    shm_size: 2gb
     
