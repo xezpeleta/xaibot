@@ -206,7 +206,7 @@ async def nitter(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if "twitter.com" or "x.com" in link:
             nitter_link = link.replace("https://twitter.com", "https://nitter.net").replace("https://x.com", "https://nitter.net")
             logger.info("[INFO] Nitter link: %s." % (nitter_link))
-            await update.message.reply_text(nitter_link)
+            await update.message.reply_text(nitter_link, disable_web_page_preview=True)
 
 def main() -> None:
     logger.info("Starting bot...")
@@ -226,7 +226,7 @@ def main() -> None:
     application.add_handler(CommandHandler("nitter", nitter))
 
     # DISABLED - Get any link from the groups (no mention non reply needed)
-    #application.add_handler(MessageHandler(filters.Entity("url") | filters.Entity("text_link"), chat))
+    #application.add_handler(MessageHandler(filters.Entity("url") | filters.Entity("text_link"), nitter))
 
     # Private messages: on non command i.e message, chat with Mistral AI
     application.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, chat))
