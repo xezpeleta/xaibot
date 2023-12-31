@@ -6,7 +6,7 @@ import os
 import re
 import logging
 import trafilatura
-from telegram import ForceReply, Update, MessageEntity
+from telegram import Update, MessageEntity
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 from functools import wraps
 from mistralai.client import MistralClient
