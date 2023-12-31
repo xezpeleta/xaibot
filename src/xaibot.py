@@ -13,6 +13,9 @@ from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from dotenv import load_dotenv
+# Load envars from .env file
+load_dotenv()
 
 # Get envars
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
