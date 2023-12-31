@@ -173,9 +173,9 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     answer_escaped = re.sub(r"([\[\]()~>\+\-=|{}.!])", r"\\\1", answer)
     # if Markdown parse fails, try plain text
     try:
-        await update.message.reply_text(answer_escaped, parse_mode="MarkdownV2")
+        await update.message.reply_text(answer_escaped, disable_web_page_preview=True, parse_mode="MarkdownV2")
     except:
-        await update.message.reply_text(answer)
+        await update.message.reply_text(answer, disable_web_page_preview=True)
 
 async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get user and chat id"""
