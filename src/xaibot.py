@@ -114,9 +114,10 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     entities = update.message.parse_entities(types=MessageEntity.URL)
     if not entities:
         logger.debug("[DEBUG] No links in the message. Checking reply message.")
-        message = update.message.reply_to_message
-        history = update.message.reply_to_message.text
-        entities = message.parse_entities(types=MessageEntity.URL)
+        if update.message.reply_to_message:
+            message = update.message.reply_to_message
+            history = update.message.reply_to_message.text
+            entities = message.parse_entities(types=MessageEntity.URL)
     
     for entity in entities:
         link = message.parse_entity(entity)
