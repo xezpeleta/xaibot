@@ -24,9 +24,9 @@ services:
     restart: unless-stopped
     environment:
       - PORT=8080
-      - RULESET=/app/ruleset.yaml
+      - RULESET=/app/ladder-rules
     volumes:
-    - ./ladder/ladder-rules/ruleset.yaml:/app/ruleset.yaml
+    - ./ladder/ladder-rules:/app/ladder-rules
   
   selenium:
     image: seleniarm/standalone-chromium:latest
