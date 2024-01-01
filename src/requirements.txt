@@ -2,3 +2,4 @@ python-telegram-bot==20.7
 mistralai==0.0.9
 trafilatura==1.6.3
 selenium==4.16.0
+python-dotenv==1.0.0
