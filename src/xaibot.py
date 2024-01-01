@@ -102,12 +102,17 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     answer = ""
     history = ""
 
-    # This is a workaround to avoid undersired replies from the bot
-    # If the chat is a group (or supergroup) and the message is a reply for someone else (not for for the bot)
-    # or it ignore it
-    if message.entities and message.entities[0].type != MessageEntity.BOT_COMMAND:
+    # Check if this function has been called with a bot command
+    if message.entities and message.entities[0].type == MessageEntity.BOT_COMMAND:
+        called_with_bot_cmd = True
+    else:
+        called_with_bot_cmd = False
+
+    # This is a workaround to avoid undersired replies from the bot to messages
+    # that are not replies to the bot or mentions to the bot
+    if called_with_bot_cmd == False and message.chat.type != 'private':
         if message.reply_to_message and message.reply_to_message.from_user.username != TELEGRAM_BOT_USERNAME:
-            if '@' + TELEGRAM_BOT_USERNAME not in message.text and message.chat.type != 'private':
+            if '@' + TELEGRAM_BOT_USERNAME not in message.text:
                 logger.debug("[DEBUG] Message is a reply for someone else (not for the bot). Ignoring it.")
                 return
 
